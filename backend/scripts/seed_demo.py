@@ -2,7 +2,7 @@ import time, json
 from sqlalchemy import select, func
 from src.config.database import Session
 from migrations.initial import migrate
-from src.models import User, Dataset, Job, Report, Delivery, Audit
+from src.models import User, Dataset, Job, Report, Delivery, Audit, Crew, MaintenanceWindow
 from src.services.business import metadata, seed_records, analyze
 from src.services.reports import deliver
 from src.utils.security import hash_password
@@ -31,8 +31,21 @@ def seed():
             r=Report(name='每日业务复核简报',job_id=j.id,destination='业务复核组 · 本地收件箱',interval_seconds=86400,next_run=time.time()+86400,enabled=True)
             db.add(r);db.flush();deliver(db,r)
             db.add(Audit(actor='seed',action='demo.baseline',detail={'dataset':d.id},at=time.time()))
+        if not db.scalar(select(Crew).where(Crew.name=='南环一工班')):
+            db.add_all([
+                Crew(name='南环一工班',skill='换轨 · 捣固',active=True,version=1,created_at=time.time()),
+                Crew(name='南环二工班',skill='焊缝 · 打磨',active=True,version=1,created_at=time.time()),
+            ])
+        if not db.scalar(select(MaintenanceWindow).where(MaintenanceWindow.name=='夜间封锁窗 A')):
+            base=time.time()+86400
+            db.add_all([
+                MaintenanceWindow(name='夜间封锁窗 A',start_at=base,end_at=base+6*3600,
+                                  line_direction='南环上行',active=True,version=1,created_at=time.time()),
+                MaintenanceWindow(name='夜间封锁窗 B',start_at=base+86400,end_at=base+86400+6*3600,
+                                  line_direction='南环上行',active=True,version=1,created_at=time.time()),
+            ])
         db.commit()
-        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in [User,Dataset,Job,Report,Delivery,Audit]}
+        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in [User,Dataset,Job,Report,Delivery,Audit,Crew,MaintenanceWindow]}
         print(json.dumps(counts,ensure_ascii=False))
         return counts
 if __name__=='__main__':seed()
